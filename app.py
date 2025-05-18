@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import re
 
+st.set_page_config(page_title="Shop Mining Dashboard", layout="wide")
+
+# --- UTILITIES ---
 @st.cache_data(show_spinner="Memuat data transaksi dan koordinat kota...", persist=True)
 def load_city_sales(selected_ips, date_range):
     import pandas as pd
@@ -66,11 +69,14 @@ def load_city_sales(selected_ips, date_range):
     city_sales = city_sales.dropna(subset=['latitude', 'longitude'])
     return city_sales
 
-
+# --- LOAD DATA ---
 # Load data yang dibutuhkan
 spend_distribution = pd.read_csv("spend_distribution.csv", index_col=0).iloc[:, 0]
 rules = pd.read_csv("association_rules.csv")  # Pastikan file tersedia
+sales_v1 = pd.read_csv('csv/fact_sales_v1.csv', sep=';')
+sales_v1['order_date'] = pd.to_datetime(sales_v1['order_date'])
 
+# --- SIDEBAR ---
 # === Sidebar Logo ===
 st.sidebar.image(
     "https://raw.githubusercontent.com/Leo42night/Leo42night/main/img/logo_shopmining.png",
@@ -85,22 +91,22 @@ Data Mining Online Service adalah layanan untuk memudahkan pengguna dalam melaku
 # === Sidebar Navigasi Halaman ===
 page = st.sidebar.radio("Pilih Halaman", ["Visualisasi", "Modelling"])
 
-# === Sidebar Filter Tambahan ===
-# Load data untuk filter
-df_v1_sidebar = pd.read_csv('csv/fact_sales_v1.csv', sep=';')
-df_v1_sidebar['order_date'] = pd.to_datetime(df_v1_sidebar['order_date'])
-
-# IP Address unik
-ip_options = sorted(df_v1_sidebar['ip_address'].dropna().unique())
-selected_ips = st.sidebar.multiselect("Filter IP Address", options=ip_options, default=ip_options)
-
-# Rentang tanggal
-min_date = df_v1_sidebar['order_date'].min().date()
-max_date = df_v1_sidebar['order_date'].max().date()
-date_range = st.sidebar.date_input("Filter Tanggal Order", value=(min_date, max_date), min_value=min_date, max_value=max_date)
-
 # ---------------------------------- HALAMAN VISUALISASI ----------------------------------
 if page == "Visualisasi":
+    # === SIDEBAR FILTER ===
+    # Load data untuk filter
+    df_v1_sidebar = sales_v1.copy(deep=True)
+    # IP Address unik
+    ip_options = sorted(df_v1_sidebar['ip_address'].dropna().unique())
+    selected_ips = st.sidebar.multiselect("Filter IP Address", options=ip_options, default=ip_options)
+
+    # Rentang tanggal
+    min_date = df_v1_sidebar['order_date'].min().date()
+    max_date = df_v1_sidebar['order_date'].max().date()
+    date_range = st.sidebar.date_input("Filter Tanggal Order", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+
+
+    # === VISUALISASI DATA E-COMMERCE ===
     st.header("📊 Visualisasi Data E-commerce")
 
     # ------------------------------------------------------------------------------------
