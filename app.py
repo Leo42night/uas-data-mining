@@ -110,45 +110,171 @@ if page == "Visualisasi":
     st.header("📊 Visualisasi Data E-commerce")
 
     # ------------------------------------------------------------------------------------
-    # --- Visualisasi Spend Distribution ---
-    st.subheader("Distribusi Pengeluaran Pelanggan", divider=True)
+    # --- KPI Metrics Section ---
+    st.subheader("KPI Metrics")
 
-    # Buat layout dua kolom
+    # CSS for cards
+    card_style = """
+    <style>
+    .card {
+      background-color: #1e1e1e;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .card h3 { color: #ffffff; margin: 0; font-size: 1rem; }
+    .card h2 { color: #66c0f4; margin: 0; font-size: 1.5rem; }
+    </style>
+    """
+    st.markdown(card_style, unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(f"""
+        <div class="card">
+          <h3>Total Sales</h3>
+          <h2>110</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <div class="card">
+          <h3>Total Customers</h3>
+          <h2>96</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"""
+        <div class="card">
+          <h3>Total Revenue</h3>
+          <h2>Rp 47.068.409</h2>
+        </div>
+        """, unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"""
+        <div class="card">
+          <h3>Total Products</h3>
+          <h2>107</h2>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ------------------------------------------------------------------------------------
+    # Dua kolom untuk Bar & Pie Chart
     col1, col2 = st.columns(2)
 
-    # **Bar Chart di kolom pertama**
     with col1:
-        st.markdown("Distribusi Customer per Kategori")
         fig, ax = plt.subplots()
-        sns.barplot(x=spend_distribution.index, y=spend_distribution.values, palette="coolwarm", ax=ax, hue=spend_distribution.index)
-
-        # Tambahkan label nominal pada masing-masing batang
+        sns.barplot(
+            x=spend_distribution.index,
+            y=spend_distribution.values,
+            palette="coolwarm",
+            ax=ax,
+            hue=spend_distribution.index,
+            dodge=False,
+        )
         for p in ax.patches:
-            ax.annotate(f'{int(p.get_height())}', 
-                        (p.get_x() + p.get_width() / 2, p.get_height()), 
-                        ha='center', va='bottom', fontsize=12, fontweight='bold', color='black')
+            ax.annotate(
+                f"{int(p.get_height())}",
+                (p.get_x() + p.get_width() / 2, p.get_height()),
+                ha='center', va='bottom', fontsize=12, fontweight='bold'
+            )
         ax.set_xlabel("Range Total Spend (IDR)")
         ax.set_ylabel("Jumlah Customer")
         ax.set_title("Distribusi Customer Berdasarkan Total Spend")
         plt.xticks(rotation=45)
         st.pyplot(fig)
 
-    # **Pie Chart di kolom kedua**
     with col2:
-        st.markdown("Persentase Customer per Kategori")
-
-        fig = plt.figure(figsize=(6, 6))
+        fig2 = plt.figure(figsize=(6, 6))
         plt.pie(
-            spend_distribution, 
-            labels=spend_distribution.index, 
+            spend_distribution,
+            labels=spend_distribution.index,
             autopct="%1.1f%%",
             colors=sns.color_palette("coolwarm"),
-            labeldistance=1.2,  # Memindahkan label lebih jauh dari lingkaran
-            pctdistance=0.8  # Memindahkan persentase ke bagian dalam
+            labeldistance=1.2,
+            pctdistance=0.8,
         )
         plt.title("Persentase Customer Berdasarkan Total Spend")
         plt.legend(spend_distribution.index, loc="best", bbox_to_anchor=(1, 1))
-        st.pyplot(fig)
+        st.pyplot(fig2)
+
+    # Bubble Cloud Chart
+    st.subheader("Bubble Cloud Chart: Top 5 Produk by Total Penjualan")
+
+    # Load & preprocess data
+    df_sales = pd.read_csv('csv/fact_sales_v2.csv', sep=';')
+    if df_sales['total_sales'].dtype == object:
+        df_sales['total_sales'] = (
+            df_sales['total_sales']
+            .str.replace('.', '', regex=False)
+            .str.replace(',', '.', regex=False)
+            .astype(float)
+        )
+    dag_sales = df_sales.groupby('product_id', as_index=False)['total_sales'].sum()
+
+    df_order_product = pd.read_csv('csv/order_product.csv', sep=';')
+    df_merge1 = dag_sales.merge(
+        df_order_product[['order_item_id', 'product_id']],
+        on='product_id', how='left'
+    )
+
+    df_items = pd.read_csv('csv/order_items.csv', sep=';')
+    df_merge2 = df_merge1.merge(
+        df_items[['order_item_id', 'order_item_name']].drop_duplicates('order_item_id'),
+        on='order_item_id', how='left'
+    )
+
+    df_final = df_merge2[['product_id', 'order_item_name', 'total_sales']].copy()
+    df_final.columns = ['id', 'order_item_name', 'total_sales']
+    df_final = df_final.drop_duplicates(subset=['id'], keep='first')
+
+    df_top5 = df_final.sort_values('total_sales', ascending=False).head(5)
+    sizes = (df_top5['total_sales'] / df_top5['total_sales'].max()) * 100 + 40
+
+    # Atur posisi bubble
+    G = nx.Graph()
+    for i in range(len(df_top5)):
+        G.add_node(i)
+    pos = nx.spring_layout(G, k=0.5, seed=42)
+    x_pos = [pos[i][0] for i in range(len(df_top5))]
+    y_pos = [pos[i][1] for i in range(len(df_top5))]
+
+    # Build Plotly figure 
+    fig_bubble = go.Figure(go.Scatter(
+        x=x_pos,
+        y=y_pos,
+        mode='markers+text',
+        text=[f"{name}<br><b>{int(total):,}</b>" for name, total in zip(df_top5['order_item_name'], df_top5['total_sales'])],
+        textposition='middle center',
+        textfont=dict(
+            color='black',  
+            size=12,
+            family='Arial'
+        ),
+        marker=dict(
+            size=sizes,
+            color=df_top5['total_sales'],
+            colorscale='Viridis',
+            showscale=True,
+            line=dict(width=2, color='DarkSlateGrey'),
+            sizemode='diameter',
+            opacity=0.7,
+        ),
+        hoverinfo='text',
+        hovertext=[f"{name}<br>Total Sales: {total:,.0f}" for name, total in zip(df_top5['order_item_name'], df_top5['total_sales'])]
+    ))
+
+    fig_bubble.update_layout(
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        plot_bgcolor='white',
+        height=600,
+        width=800,
+        margin=dict(l=20, r=20, t=60, b=20)
+    )
+
+    st.plotly_chart(fig_bubble, use_container_width=True)
     
     # ------------------------------------------------------------------------------------
     # --- Visualisasi Frekuensi Transaksi per Jam berdasarkan IP ---
