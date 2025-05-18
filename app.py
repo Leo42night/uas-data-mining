@@ -1,32 +1,109 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
+
+@st.cache_data(show_spinner="Memuat data transaksi dan koordinat kota...", persist=True)
+def load_city_sales(selected_ips, date_range):
+    import pandas as pd
+    from geopy.geocoders import Nominatim
+    from geopy.extra.rate_limiter import RateLimiter
+
+    # Load data utama
+    df = pd.read_csv("csv/fact_sales_v2.csv", sep=';', encoding='utf-8')
+    df['city'] = df['city'].str.replace(r'^(Kota|Kabupaten)\s+', '', case=False, regex=True).str.strip()
+    df = df[df['city'].notnull() & (df['city'] != '')]
+
+    # Gabungkan IP address dari fact_sales_v1
+    df_v1 = pd.read_csv("csv/fact_sales_v1.csv", sep=';')
+    df_v1 = df_v1[['order_id', 'ip_address']].drop_duplicates()
+    df = pd.merge(df, df_v1, on='order_id', how='left')
+
+    # Filter transaksi unik
+    unique_orders = df[['order_id', 'city', 'ip_address', 'order_date']].drop_duplicates()
+    unique_orders['order_date'] = pd.to_datetime(unique_orders['order_date'])
+
+    # Filter berdasarkan input user
+    filtered_orders = unique_orders[
+        (unique_orders['ip_address'].isin(selected_ips)) &
+        (unique_orders['order_date'].dt.date >= date_range[0]) &
+        (unique_orders['order_date'].dt.date <= date_range[1])
+    ]
+
+    # Hitung transaksi per kota
+    city_transaction_counts = filtered_orders['city'].value_counts().reset_index()
+    city_transaction_counts.columns = ['city', 'transaction_count']
+
+    # Produk terlaris per kota
+    most_bought_items = (
+        df.groupby(['city', 'order_item_name'])
+        .size()
+        .reset_index(name='count')
+        .sort_values(['city', 'count'], ascending=[True, False])
+        .drop_duplicates('city')
+        .rename(columns={'order_item_name': 'most_bought_product'})
+    )
+
+    city_sales = pd.merge(city_transaction_counts, most_bought_items[['city', 'most_bought_product']], on='city', how='left')
+
+    # Geocoding
+    geolocator = Nominatim(user_agent="myApp", timeout=10)
+    geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
+
+    def safe_geocode(city):
+        try:
+            return geocode(f"{city}, Indonesia")
+        except:
+            return None
+
+    city_sales['location'] = city_sales['city'].apply(safe_geocode)
+    city_sales['latitude'] = city_sales['location'].apply(lambda loc: loc.latitude if loc else None)
+    city_sales['longitude'] = city_sales['location'].apply(lambda loc: loc.longitude if loc else None)
+
+    city_sales = city_sales.dropna(subset=['latitude', 'longitude'])
+    return city_sales
 
 
 # Load data yang dibutuhkan
 spend_distribution = pd.read_csv("spend_distribution.csv", index_col=0).iloc[:, 0]
 rules = pd.read_csv("association_rules.csv")  # Pastikan file tersedia
 
-# Tambahkan gambar di sidebar
+# === Sidebar Logo ===
 st.sidebar.image(
     "https://raw.githubusercontent.com/Leo42night/Leo42night/main/img/logo_shopmining.png",
     caption="[datamininguntan.my.id](https://datamininguntan.my.id/)"
 )
 
-# Tambahkan deskripsi proyek di sidebar
+# === Sidebar Deskripsi ===
 st.sidebar.caption("""
 Data Mining Online Service adalah layanan untuk memudahkan pengguna dalam melakukan analisis data online. Layanan ini menyediakan fitur-fitur seperti visualisasi data, modelling, serta rekomendasi produk berdasarkan transaksi.
 """)
 
-# **Buat Menu Navigasi di Sidebar**
+# === Sidebar Navigasi Halaman ===
 page = st.sidebar.radio("Pilih Halaman", ["Visualisasi", "Modelling"])
+
+# === Sidebar Filter Tambahan ===
+# Load data untuk filter
+df_v1_sidebar = pd.read_csv('csv/fact_sales_v1.csv', sep=';')
+df_v1_sidebar['order_date'] = pd.to_datetime(df_v1_sidebar['order_date'])
+
+# IP Address unik
+ip_options = sorted(df_v1_sidebar['ip_address'].dropna().unique())
+selected_ips = st.sidebar.multiselect("Filter IP Address", options=ip_options, default=ip_options)
+
+# Rentang tanggal
+min_date = df_v1_sidebar['order_date'].min().date()
+max_date = df_v1_sidebar['order_date'].max().date()
+date_range = st.sidebar.date_input("Filter Tanggal Order", value=(min_date, max_date), min_value=min_date, max_value=max_date)
 
 # ---------------------------------- HALAMAN VISUALISASI ----------------------------------
 if page == "Visualisasi":
-    st.header("📊 Visualisasi Data - E-commerce")
+    st.header("📊 Visualisasi Data E-commerce")
 
+    # ------------------------------------------------------------------------------------
     # --- Visualisasi Spend Distribution ---
     st.subheader("Distribusi Pengeluaran Pelanggan", divider=True)
 
@@ -66,6 +143,123 @@ if page == "Visualisasi":
         plt.title("Persentase Customer Berdasarkan Total Spend")
         plt.legend(spend_distribution.index, loc="best", bbox_to_anchor=(1, 1))
         st.pyplot(fig)
+    
+    # ------------------------------------------------------------------------------------
+    # --- Visualisasi Frekuensi Transaksi per Jam berdasarkan IP ---
+    st.subheader("Frekuensi Pembelian Berdasarkan Jam dan IP Address", divider=True)
+
+    df_v1 = pd.read_csv('csv/fact_sales_v1.csv', sep=';')
+    df_v1 = df_v1[df_v1['order_item_type'] != 'shipping']
+    df_v1['order_date'] = pd.to_datetime(df_v1['order_date'])
+    df_v1 = df_v1[['order_date', 'ip_address', 'order_id']].drop_duplicates()
+    
+    # Filter berdasarkan IP dan tanggal
+    filtered_df = df_v1[
+        (df_v1['ip_address'].isin(selected_ips)) &
+        (df_v1['order_date'].dt.date >= date_range[0]) &
+        (df_v1['order_date'].dt.date <= date_range[1])
+    ]
+
+    # Bulatkan waktu ke jam terdekat
+    filtered_df['order_time'] = filtered_df['order_date'].dt.floor('h')
+
+    # Grouping
+    grouped = filtered_df.groupby(['order_time', 'ip_address']).size().reset_index(name='jumlah_transaksi')
+
+    # Pivot agar IP Address menjadi kolom
+    pivot_df = grouped.pivot(index='order_time', columns='ip_address', values='jumlah_transaksi').fillna(0)
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(18, 8))
+    pivot_df.plot(ax=ax, marker='o', markersize=8, linewidth=1.5)
+    ax.set_title('Frekuensi Pembelian per Jam Berdasarkan IP Address')
+    ax.set_xlabel('Waktu Pemesanan')
+    ax.set_ylabel('Jumlah Transaksi')
+    ax.legend(title='IP Address', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+    ax.grid(True)
+    plt.tight_layout()
+
+    st.pyplot(fig)
+    
+    # ------------------------------------------------------------------------------------
+    # --- Visualisasi Top 10 Produk dengan Interaksi Terbanyak ---
+    st.subheader("Top 10 Produk Berdasarkan Interaksi", divider=True)
+
+    order_items = pd.read_csv("csv/order_items.csv", sep=";")
+
+    # Filter hanya untuk item produk (bukan shipping, tax, dsb)
+    product_interactions = order_items[order_items["order_item_type"] == "line_item"]
+
+    # Hitung jumlah interaksi produk
+    product_counts = product_interactions["order_item_name"].value_counts().reset_index()
+    product_counts.columns = ["product_name", "interaction_count"]
+
+    # Ambil 10 produk teratas
+    top_products = product_counts.head(10)
+
+    # Visualisasi bar chart horizontal
+    fig, ax = plt.subplots(figsize=(12, 6))
+    plot = sns.barplot(
+        data=top_products,
+        x="interaction_count",
+        y="product_name",
+        palette="crest",
+        hue="product_name",
+        legend=False,
+        ax=ax
+    )
+
+    for bar in plot.containers:
+        plot.bar_label(bar, fmt='%d', label_type='edge', padding=3)
+
+    ax.set_title("Produk dengan Interaksi Terbanyak (Top 10)", fontsize=14, fontweight="bold")
+    ax.set_xlabel("Jumlah Interaksi")
+    ax.set_ylabel("Nama Produk")
+    plt.tight_layout()
+
+    st.pyplot(fig)
+    
+    
+    # ------------------------------------------------------------------------------------
+    # --- Visualisasi Sebaran Transaksi per Kota ---
+    st.subheader("Sebaran Transaksi per Kota", divider=True)
+    st.markdown("Tiap *Point* dilengkapi Jumlah Transaksi dan Produk Terlaris")
+
+    # Tambahkan spinner agar Streamlit tidak tampak diam saat loading lokasi
+    with st.spinner("Menyiapkan visualisasi..."):
+        city_sales = load_city_sales(selected_ips, date_range)
+
+        fig_map = px.scatter_geo(
+            city_sales,
+            lat='latitude',
+            lon='longitude',
+            size='transaction_count',
+            color_discrete_sequence=['red'],
+            hover_name='city',
+            hover_data={
+                'transaction_count': True,
+                'most_bought_product': True,
+                'latitude': False,
+                'longitude': False
+            },
+            projection='mercator'
+        )
+
+        fig_map.update_geos(
+            visible=True,
+            lataxis_range=[-11, 6],
+            lonaxis_range=[95, 141],
+            showcountries=True,
+            countrycolor="Black"
+        )
+
+        fig_map.update_layout(
+            margin={"r": 0, "t": 0, "l": 0, "b": 0},
+            legend_title_text='Jumlah Transaksi'
+        )
+
+        st.plotly_chart(fig_map, use_container_width=True)
+
 
 # ---------------------------------- HALAMAN MODELLING ----------------------------------
 elif page == "Modelling":
