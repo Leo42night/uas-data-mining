@@ -5,6 +5,8 @@ import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
+import plotly.graph_objects as go
+import networkx as nx
 
 st.set_page_config(page_title="Shop Mining Dashboard", layout="wide")
 
