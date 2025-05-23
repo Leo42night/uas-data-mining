@@ -1,0 +1,8 @@
+Catatan Yang Diperlukan Proyek:
+- Load Data di dasboard perlu dioptimasi: Generate dataset baru. 
+  - Cut off preprocessing, buat data yang diload langsung divisualkan. Jadi sebelumnya; hapus beberapa kolom tidak dipakai, lakukan pembersihan untuk null dan duplicated.
+  - Gabungkan/pisahkan dataset menjadi data yang diperlukan saja.
+- Dashboard:
+  - KPI & Distribusi Customer buat dinamis
+  - KPI dibanding hari sebelumnya
+  - KPI & Distribusi dipengaruhi filter

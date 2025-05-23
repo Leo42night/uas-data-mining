@@ -96,7 +96,8 @@ Data Mining Online Service adalah layanan untuk memudahkan pengguna dalam melaku
 """)
 
 # === Sidebar Navigasi Halaman ===
-page = st.sidebar.radio("Pilih Halaman", ["Visualisasi", "Modelling"])
+page = st.sidebar.radio("Pilih Halaman", ["Visualisasi", "Model: Association Rules"])
+
 
 # ---------------------------------- HALAMAN VISUALISASI ----------------------------------
 if page == "Visualisasi":
@@ -120,53 +121,21 @@ if page == "Visualisasi":
     # --- KPI Metrics Section ---
     st.subheader("KPI Metrics", divider=True)
 
-    # CSS for cards
-    card_style = """
-    <style>
-    .card {
-      background-color: #1e1e1e;
-      padding: 1rem;
-      border-radius: 0.5rem;
-      text-align: center;
-      margin-bottom: 1rem;
-    }
-    .card h3 { color: #ffffff; margin: 0; font-size: 1rem; }
-    .card h2 { color: #66c0f4; margin: 0; font-size: 1.5rem; }
-    </style>
-    """
-    st.markdown(card_style, unsafe_allow_html=True)
+    # Buat 4 kolom
+    col1, col2, col3, col4 = st.columns(4)
+    # Isi masing-masing kolom dengan KPI
+    with col1:
+        st.metric(label="Transactions", value="110", delta="+5%")
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(f"""
-        <div class="card">
-          <h3>Total Sales</h3>
-          <h2>110</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""
-        <div class="card">
-          <h3>Total Customers</h3>
-          <h2>96</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"""
-        <div class="card">
-          <h3>Total Revenue</h3>
-          <h2>Rp 47.068.409</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"""
-        <div class="card">
-          <h3>Total Products</h3>
-          <h2>107</h2>
-        </div>
-        """, unsafe_allow_html=True)
+    with col2:
+        st.metric(label="Customers", value="96", delta="+3.2%")
 
+    with col3:
+        st.metric(label="Products", value="107", delta="+8.1%")
 
+    with col4:
+        st.metric(label="Revenue", value="Rp47.068.409", delta="-0.5%")
+        
     # ------------------------------------------------------------------------------------
     # Dua kolom untuk Bar & Pie Chart
     col1, col2 = st.columns(2)
@@ -213,7 +182,7 @@ if page == "Visualisasi":
     with col3:
         # ------------------------------------------------------------------------------------
         # Bubble Cloud Chart
-        st.subheader("Bubble Cloud Chart: Top 5 Produk by Total Penjualan", divider=True)
+        st.subheader("Top 5 Produk by Total Penjualan", divider=True)
 
         # Load & preprocess data
         df_sales = sales_v2.copy(deep=True)
@@ -349,10 +318,7 @@ if page == "Visualisasi":
         # Tambahkan lubang di tengah (donut hole)
         centre_circle = plt.Circle((0, 0), 0.70, fc='white')
         ax.add_artist(centre_circle)
-
-        plt.title("Donut Chart: Halaman Produk Berdasarkan Interaksi (%)", fontsize=14, fontweight="bold")
-        plt.tight_layout()
-
+        plt.tight_layout() # menyesuaikan letak subplot: tidak bertumpuk atau terlalu rapat
         # Tampilkan di Streamlit
         st.pyplot(fig)
         
@@ -473,8 +439,8 @@ if page == "Visualisasi":
         st.plotly_chart(fig_map, use_container_width=True)
 
 
-# ---------------------------------- HALAMAN MODELLING ----------------------------------
-elif page == "Modelling":
+# ---------------------------------- HALAMAN MODELLING 1 ----------------------------------
+elif page == "Model: Association Rules":
     st.header("🤖 Modelling - Association Rules")
     st.caption("""
 Proyek ini menggunakan **mlxtend.frequent_patterns** untuk mengidentifikasi aturan asosiasi dari transaksi e-commerce.
