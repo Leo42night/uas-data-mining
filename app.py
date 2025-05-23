@@ -4,6 +4,8 @@ import numpy as np
 import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.graph_objects as go
+import networkx as nx
 import re
 import plotly.graph_objects as go
 import networkx as nx
@@ -442,49 +444,56 @@ if page == "Visualisasi":
 # ---------------------------------- HALAMAN MODELLING 1 ----------------------------------
 elif page == "Model: Association Rules":
     st.header("🤖 Modelling - Association Rules")
-    st.caption("""
-Proyek ini menggunakan **mlxtend.frequent_patterns** untuk mengidentifikasi aturan asosiasi dari transaksi e-commerce.
-Pengguna dapat memasukkan produk yang dibeli, dan sistem akan merekomendasikan produk lain berdasarkan pola pembelian sebelumnya.
-                """)
+    rules = pd.read_csv("association_rules.csv")
 
-    # **Input Produk untuk Multi-Select**
-    product_list = sorted(set(rules["antecedents"].apply(eval).explode()))  # Mendapatkan daftar produk unik
+    st.caption(
+        """
+        Proyek ini menggunakan **mlxtend.frequent_patterns** untuk mengidentifikasi aturan asosiasi.
+        Masukkan produk yang dibeli, sistem akan merekomendasikan produk lain berdasarkan pola pembelian.
+        """,
+        unsafe_allow_html=True
+    )
+
+    product_list = sorted(set(rules["antecedents"].apply(eval).explode()))
     selected_products = st.multiselect("Pilih produk yang dibeli:", product_list)
 
-    # **Inferensi Aturan Asosiasi**
     new_transaction = set(selected_products)
     matched_rules = rules[rules["antecedents"].apply(lambda x: set(eval(x)).issubset(new_transaction))]
-    
-    # bersihkan string set
+
     def clean_frozenset(text):
-        cleaned_text = re.sub(r"frozenset\(\{(.*?)\}\)", r"[\1]", text)  # Ubah ke list format string
-        return cleaned_text.replace("'", '"')  # Ganti kutip tunggal ke kutip ganda
+        cleaned = re.sub(r"frozenset\(\{(.*?)\}\)", r"[\1]", text)
+        return cleaned.replace("'", '"')
 
     matched_rules["antecedents"] = matched_rules["antecedents"].apply(clean_frozenset)
     matched_rules["consequents"] = matched_rules["consequents"].apply(clean_frozenset)
-    
 
     st.subheader("Rekomendasi Produk Berdasarkan Transaksi")
-    st.markdown("""
-    - **Jika aturan ditemukan**, produk dalam *consequents* bisa direkomendasikan kepada pengguna.<br>
-    - **Confidence** menunjukkan seberapa besar peluang bahwa orang yang membeli antecedent juga akan membeli consequent.<br>
-    - **Lift** menunjukkan seberapa kuat hubungan antara antecedent dan consequent dibandingkan pembelian acak.<br>
-    """, unsafe_allow_html=True)
-
     if matched_rules.empty:
         st.write("Tidak ada rekomendasi berdasarkan transaksi ini.")
     else:
         st.dataframe(matched_rules[["antecedents", "consequents", "confidence", "lift"]])
 
-    # **Visualisasi Confidence dan Lift**
     st.subheader("Visualisasi Confidence dan Lift")
     if not matched_rules.empty:
-        fig, ax = plt.subplots()
-        sns.barplot(x=matched_rules["consequents"], y=matched_rules["confidence"], color="blue", label="Confidence", ax=ax)
-        sns.barplot(x=matched_rules["consequents"], y=matched_rules["lift"], color="red", alpha=0.5, label="Lift", ax=ax)
+        fig3, ax3 = plt.subplots()
+        sns.barplot(
+            x=matched_rules["consequents"],
+            y=matched_rules["confidence"],
+            color="blue",
+            label="Confidence",
+            ax=ax3
+        )
+        sns.barplot(
+            x=matched_rules["consequents"],
+            y=matched_rules["lift"],
+            color="red",
+            alpha=0.5,
+            label="Lift",
+            ax=ax3
+        )
         plt.xticks(rotation=45)
         plt.ylabel("Score")
         plt.xlabel("Consequents")
         plt.title("Confidence vs Lift dari Produk Rekomendasi")
         plt.legend()
-        st.pyplot(fig)
+        st.pyplot(fig3)
