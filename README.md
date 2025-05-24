@@ -1,17 +1,6 @@
-<img src="images/logo_shopmining.png" style="animation: fadeInScale 1.5s ease-in-out;"/>
-
-<style>
-@keyframes fadeInScale {
-    0% {
-        opacity: 0;
-        transform: scale(0.8);
-    }
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-</style>
+<div style="background-color: #f0f0f0; padding: 10px; display: inline-block;">
+  <img src="images/logo_shopmining.png" alt="Logo Shopmining" />
+</div>
 
 # Data Mining Online Service
 projek simulasi jika kita menjadi pemilik website dan ingin melakukan analisis data yang ada website tersebut (database). Menggunakan pendekatan CRISP-DM. Tugas mata kuliah Data Mining
