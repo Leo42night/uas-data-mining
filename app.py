@@ -27,7 +27,7 @@ bubble_chart = pd.read_csv("bubble_chart.csv")
 page_chart = pd.read_csv("page_chart.csv")
 line_chart = pd.read_csv("line_chart.csv")
 interact_chart = pd.read_csv("interact_chart.csv")
-# Stacked Bar
+stacked_chart = pd.read_csv("stacked_chart.csv")
 city_sales = pd.read_csv("city_sales.csv")
 # Model Asosiasi
 rules = pd.read_csv("association_rules.csv")  # Pastikan file tersedia
@@ -115,6 +115,7 @@ if page == "Visualisasi":
                 (p.get_x() + p.get_width() / 2, p.get_height()),
                 ha='center', va='bottom', fontsize=12, fontweight='bold'
             )
+
         ax.set_xlabel("Range Total Spend (IDR)")
         ax.set_ylabel("Jumlah Customer")
         plt.xticks(rotation=45)
@@ -252,7 +253,7 @@ if page == "Visualisasi":
         
     # ------------------------------------------------------------------------------------
     # --- Visualisasi Frekuensi Transaksi per Jam berdasarkan IP ---
-    st.subheader("Frekuensi Pembelian Berdasarkan Jam dan IP Address", divider=True)
+    st.subheader("Frekuensi Order by Jam & IP Address", divider=True)
 
     # Filter berdasarkan IP dan Tanggal
     filtered_df_line = filter(line_chart)
@@ -273,35 +274,69 @@ if page == "Visualisasi":
     # Plotting
     st.pyplot(fig_line)
     
+    # Dua kolom untuk Bar & Pie Chart
+    col5, col6 = st.columns(2)
     
-    # ------------------------------------------------------------------------------------
-    # --- Visualisasi Top 10 Produk dengan Interaksi Terbanyak ---
-    st.subheader("Top 10 Produk Berdasarkan Interaksi", divider=True)
+    with col5:
+        # ------------------------------------------------------------------------------------
+        # --- Visualisasi Top 10 Produk dengan Interaksi Terbanyak ---
+        st.subheader("Top 10 Produk Berdasarkan Interaksi", divider=True)
 
-    # Ambil 10 produk teratas
-    top_products = interact_chart.head(10)
+        # Ambil 10 produk teratas
+        top_products = interact_chart.head(10)
 
-    # Visualisasi bar chart horizontal
-    fig, ax = plt.subplots(figsize=(12, 6))
-    plot = sns.barplot(
-        data=top_products,
-        x="interaction_count",
-        y="product_name",
-        palette="crest",
-        hue="product_name",
-        legend=False,
-        ax=ax
-    )
+        # Visualisasi bar chart horizontal
+        fig, ax = plt.subplots(figsize=(12, 6))
+        plot = sns.barplot(
+            data=top_products,
+            x="interaction_count",
+            y="product_name",
+            palette="crest",
+            hue="product_name",
+            legend=False,
+            ax=ax
+        )
 
-    for bar in plot.containers:
-        plot.bar_label(bar, fmt='%d', label_type='edge', padding=3)
+        for bar in plot.containers:
+            plot.bar_label(bar, fmt='%d', label_type='edge', padding=3)
 
-    ax.set_title("Produk dengan Interaksi Terbanyak (Top 10)", fontsize=14, fontweight="bold")
-    ax.set_xlabel("Jumlah Interaksi")
-    ax.set_ylabel("Nama Produk")
-    plt.tight_layout()
+        ax.set_title("Produk dengan Interaksi Terbanyak (Top 10)", fontsize=14, fontweight="bold")
+        ax.set_xlabel("Jumlah Interaksi")
+        ax.set_ylabel("Nama Produk")
+        plt.tight_layout()
 
-    st.pyplot(fig)
+        st.pyplot(fig)
+    with col6:    
+        # ------------------------------------------------------------------------------------
+        # Stacked Bar Chart
+        st.subheader("Customer tiap IP Address & Frekuensi-nya", divider=True)
+        
+        filtered_stacked_chart = filter(stacked_chart)
+        
+        # Hitung frekuensi order berdasarkan ip_address dan customer_id
+        order_freq = filtered_stacked_chart.groupby(['ip_address', 'customer_id']).size().unstack(fill_value=0)
+        
+        # Membuat objek figure dan axis
+        fig, ax = plt.subplots(figsize=(12, 9))
+        
+        # Plot stacked bar chart
+        order_freq.plot(kind='bar', stacked=True, ax=ax, legend=False)
+
+        # Hitung jumlah customer unik per IP
+        unique_cust = order_freq.gt(0).sum(axis=1)
+
+        # Tambahkan jumlah customer di atas setiap bar
+        totals = order_freq.sum(axis=1)  # untuk tahu tinggi bar
+        for i, (cust, total) in enumerate(zip(unique_cust, totals)):
+            ax.text(i, total + 0.3, f"{cust} cust", ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+        plt.ylabel('Frekuensi Order')
+        plt.xlabel('IP Address')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        # Tampilkan plot di Streamlit
+        st.pyplot(fig)    
     
     
     # ------------------------------------------------------------------------------------

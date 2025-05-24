@@ -40,3 +40,17 @@ FROM wpkr_wc_orders o
 INNER JOIN wpkr_wc_customer_lookup c ON o.customer_id = c.customer_id
 INNER JOIN wpkr_woocommerce_order_items oi ON o.id = oi.order_id
 LEFT JOIN wpkr_wc_order_product_lookup op ON o.id = op.order_id;
+
+SELECT COUNT(customer_id) FROM wpkr_wc_customer_lookup; -- jumlah customer
+
+SELECT COUNT(product_id) FROM wpkr_wc_product_meta_lookup; -- jumlah product
+
+SELECT COUNT(id) FROM wpkr_wc_orders_meta; -- jumlah rows order_meta
+
+SELECT * FROM wpkr_wc_order_product_lookup; -- jumlah order_product
+
+SELECT order_item_id, order_id, product_id, customer_id, date_created, product_net_revenue FROM wpkr_wc_order_product_lookup; -- get selected order_product
+
+SELECT id, STATUS, total_amount, customer_id, billing_email, date_created_gmt, ip_address  FROM wpkr_wc_orders; -- get selected orders
+
+SELECT product_id, min_price, total_sales FROM wpkr_wc_product_meta_lookup; -- get selected product_meta
