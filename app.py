@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+# import numpy as np
 import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.graph_objects as go
 import networkx as nx
 import re
-import plotly.graph_objects as go
-import networkx as nx
+from geopy.geocoders import Nominatim
+from geopy.extra.rate_limiter import RateLimiter
 
 # --- LOAD DATA ---
 # Load data yang dibutuhkan
@@ -28,10 +28,6 @@ st.set_page_config(page_title="Shop Mining Dashboard", layout="wide")
 # --- UTILITIES ---
 @st.cache_data(show_spinner="Memuat data transaksi dan koordinat kota...", persist=True)
 def load_city_sales(selected_ips, date_range):
-    import pandas as pd
-    from geopy.geocoders import Nominatim
-    from geopy.extra.rate_limiter import RateLimiter
-
     # Load data utama
     df = sales_v2.copy(deep=True)
     df['city'] = df['city'].str.replace(r'^(Kota|Kabupaten)\s+', '', case=False, regex=True).str.strip()
@@ -99,7 +95,6 @@ Data Mining Online Service adalah layanan untuk memudahkan pengguna dalam melaku
 
 # === Sidebar Navigasi Halaman ===
 page = st.sidebar.radio("Pilih Halaman", ["Visualisasi", "Model: Association Rules"])
-
 
 # ---------------------------------- HALAMAN VISUALISASI ----------------------------------
 if page == "Visualisasi":
@@ -468,6 +463,12 @@ elif page == "Model: Association Rules":
     matched_rules["consequents"] = matched_rules["consequents"].apply(clean_frozenset)
 
     st.subheader("Rekomendasi Produk Berdasarkan Transaksi")
+    st.markdown("""
+    - **Jika aturan ditemukan**, produk dalam *consequents* bisa direkomendasikan kepada pengguna.<br>
+    - **Confidence** menunjukkan seberapa besar peluang bahwa orang yang membeli antecedent juga akan membeli consequent.<br>
+    - **Lift** menunjukkan seberapa kuat hubungan antara antecedent dan consequent dibandingkan pembelian acak.<br>
+    """, unsafe_allow_html=True)
+
     if matched_rules.empty:
         st.write("Tidak ada rekomendasi berdasarkan transaksi ini.")
     else:
