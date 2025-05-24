@@ -7,79 +7,42 @@ import seaborn as sns
 import plotly.graph_objects as go
 import networkx as nx
 import re
-from geopy.geocoders import Nominatim
-from geopy.extra.rate_limiter import RateLimiter
+import json # load data filter
+from datetime import datetime
 
 # --- LOAD DATA ---
-# Load data yang dibutuhkan
-spend_distribution = pd.read_csv("spend_distribution.csv", index_col=0).iloc[:, 0]
-rules = pd.read_csv("association_rules.csv")  # Pastikan file tersedia
-sales_v1 = pd.read_csv('csv/fact_sales_v1.csv', sep=';')
-sales_v1['order_date'] = pd.to_datetime(sales_v1['order_date'])
-sales_v2 = pd.read_csv('csv/fact_sales_v2.csv', sep=';', encoding='utf-8')
-sales_v2['order_date'] = pd.to_datetime(sales_v2['order_date'])
-df_order_product = pd.read_csv('csv/order_product.csv', sep=';')
-df_items = pd.read_csv('csv/order_items.csv', sep=';')
-order_meta = pd.read_csv("csv/order_meta.csv", sep=";")
 
+# Load JSON (setup Filter)
+with open("setup_filter.json", "r") as f:
+    loaded_data = json.load(f)
+
+# Konversi kembali min_date & max_date ke datetime.date
+loaded_data["min_date"] = datetime.strptime(loaded_data["min_date"], "%Y-%m-%d").date()
+loaded_data["max_date"] = datetime.strptime(loaded_data["max_date"], "%Y-%m-%d").date()
+
+# Load dataset yang dibutuhkan
+# KPI
+spend_chart = pd.read_csv("spend_chart.csv")
+bubble_chart = pd.read_csv("bubble_chart.csv")
+page_chart = pd.read_csv("page_chart.csv")
+line_chart = pd.read_csv("line_chart.csv")
+interact_chart = pd.read_csv("interact_chart.csv")
+# Stacked Bar
+city_sales = pd.read_csv("city_sales.csv")
+# Model Asosiasi
+rules = pd.read_csv("association_rules.csv")  # Pastikan file tersedia
+# Model Clustering
 
 st.set_page_config(page_title="Shop Mining Dashboard", layout="wide")
 
-# --- UTILITIES ---
-@st.cache_data(show_spinner="Memuat data transaksi dan koordinat kota...", persist=True)
-def load_city_sales(selected_ips, date_range):
-    # Load data utama
-    df = sales_v2.copy(deep=True)
-    df['city'] = df['city'].str.replace(r'^(Kota|Kabupaten)\s+', '', case=False, regex=True).str.strip()
-    df = df[df['city'].notnull() & (df['city'] != '')]
-
-    # Gabungkan IP address dari fact_sales_v1
-    df_v1 = sales_v1.copy(deep=True)
-    df_v1 = df_v1[['order_id', 'ip_address']].drop_duplicates()
-    df = pd.merge(df, df_v1, on='order_id', how='left')
-
-    # Filter transaksi unik
-    unique_orders = df[['order_id', 'city', 'ip_address', 'order_date']].drop_duplicates()
-
-    # Filter berdasarkan input user
-    filtered_orders = unique_orders[
-        (unique_orders['ip_address'].isin(selected_ips)) &
-        (unique_orders['order_date'].dt.date >= date_range[0]) &
-        (unique_orders['order_date'].dt.date <= date_range[1])
-    ]
-
-    # Hitung transaksi per kota
-    city_transaction_counts = filtered_orders['city'].value_counts().reset_index()
-    city_transaction_counts.columns = ['city', 'transaction_count']
-
-    # Produk terlaris per kota
-    most_bought_items = (
-        df.groupby(['city', 'order_item_name'])
-        .size()
-        .reset_index(name='count')
-        .sort_values(['city', 'count'], ascending=[True, False])
-        .drop_duplicates('city')
-        .rename(columns={'order_item_name': 'most_bought_product'})
-    )
-
-    city_sales = pd.merge(city_transaction_counts, most_bought_items[['city', 'most_bought_product']], on='city', how='left')
-
-    # Geocoding
-    geolocator = Nominatim(user_agent="myApp", timeout=10)
-    geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
-
-    def safe_geocode(city):
-        try:
-            return geocode(f"{city}, Indonesia")
-        except:
-            return None
-
-    city_sales['location'] = city_sales['city'].apply(safe_geocode)
-    city_sales['latitude'] = city_sales['location'].apply(lambda loc: loc.latitude if loc else None)
-    city_sales['longitude'] = city_sales['location'].apply(lambda loc: loc.longitude if loc else None)
-
-    city_sales = city_sales.dropna(subset=['latitude', 'longitude'])
-    return city_sales
+def filter(df):
+    # Filter berdasarkan IP dan Tanggal
+    filtered_df = df[
+        (df['ip_address'].isin(selected_ips)) &
+        (pd.to_datetime(df['order_date']).dt.date >= date_range[0]) &
+        (pd.to_datetime(df['order_date']).dt.date <= date_range[1])
+    ]    
+    return filtered_df
 
 # --- SIDEBAR ---
 # === Sidebar Logo ===
@@ -99,17 +62,8 @@ page = st.sidebar.radio("Pilih Halaman", ["Visualisasi", "Model: Association Rul
 # ---------------------------------- HALAMAN VISUALISASI ----------------------------------
 if page == "Visualisasi":
     # === SIDEBAR FILTER ===
-    # Load data untuk filter
-    df_v1_sidebar = sales_v1.copy(deep=True)
-    # IP Address unik
-    ip_options = sorted(df_v1_sidebar['ip_address'].dropna().unique())
-    selected_ips = st.sidebar.multiselect("Filter IP Address", options=ip_options, default=ip_options)
-
-    # Rentang tanggal
-    min_date = df_v1_sidebar['order_date'].min().date()
-    max_date = df_v1_sidebar['order_date'].max().date()
-    date_range = st.sidebar.date_input("Filter Tanggal Order", value=(min_date, max_date), min_value=min_date, max_value=max_date)
-
+    selected_ips = st.sidebar.multiselect("Filter IP Address", options=loaded_data["ip_options"], default=loaded_data["ip_options"])
+    date_range = st.sidebar.date_input("Filter Tanggal Order", value=(loaded_data["min_date"], loaded_data["max_date"]), min_value=loaded_data["min_date"], max_value=loaded_data["max_date"])
 
     # === VISUALISASI DATA E-COMMERCE ===
     st.header("📊 Visualisasi Data E-commerce")
@@ -139,6 +93,13 @@ if page == "Visualisasi":
 
     with col1:
         st.subheader("Distribusi Customer Berdasarkan Total Spend", divider=True)
+        
+        # filter data
+        filtered_df = filter(spend_chart)
+        
+        # Hitung jumlah customer di setiap kategori
+        spend_distribution = filtered_df["spend_category"].value_counts().sort_index()
+
         fig, ax = plt.subplots()
         sns.barplot(
             x=spend_distribution.index,
@@ -180,33 +141,11 @@ if page == "Visualisasi":
         # ------------------------------------------------------------------------------------
         # Bubble Cloud Chart
         st.subheader("Top 5 Produk by Total Penjualan", divider=True)
+        
+        # Filter berdasarkan IP dan Tanggal
+        filtered_df_bubble = filter(bubble_chart)
 
-        # Load & preprocess data
-        df_sales = sales_v2.copy(deep=True)
-        if df_sales['total_sales'].dtype == object:
-            df_sales['total_sales'] = (
-                df_sales['total_sales']
-                .str.replace('.', '', regex=False)
-                .str.replace(',', '.', regex=False)
-                .astype(float)
-            )
-        dag_sales = df_sales.groupby('product_id', as_index=False)['total_sales'].sum()
-
-        df_merge1 = dag_sales.merge(
-            df_order_product[['order_item_id', 'product_id']],
-            on='product_id', how='left'
-        )
-
-        df_merge2 = df_merge1.merge(
-            df_items[['order_item_id', 'order_item_name']].drop_duplicates('order_item_id'),
-            on='order_item_id', how='left'
-        )
-
-        df_final = df_merge2[['product_id', 'order_item_name', 'total_sales']].copy()
-        df_final.columns = ['id', 'order_item_name', 'total_sales']
-        df_final = df_final.drop_duplicates(subset=['id'], keep='first')
-
-        df_top5 = df_final.sort_values('total_sales', ascending=False).head(5)
+        df_top5 = filtered_df_bubble.sort_values('total_sales', ascending=False).head(5)
         sizes = (df_top5['total_sales'] / df_top5['total_sales'].max()) * 100 + 40
 
         # Atur posisi bubble
@@ -226,13 +165,6 @@ if page == "Visualisasi":
             x=x_pos,
             y=y_pos,
             mode='markers+text',
-            text=[f"{wrap_text(name)}<br><b>{int(total):,}</b>" for name, total in zip(df_top5['order_item_name'], df_top5['total_sales'])],
-            textposition='middle center',
-            textfont=dict(
-                color='black',  
-                size=12,
-                family='Arial'
-            ),
             marker=dict(
                 size=sizes,
                 color=df_top5['total_sales'],
@@ -286,13 +218,12 @@ if page == "Visualisasi":
     with col4:
         # ------------------------------------------------------------------------------------
         st.subheader("Halaman Produk dengan Interaksi Tertinggi", divider=True)
-        st.markdown("Berikut adalah 10 halaman dengan jumlah interaksi tertinggi berdasarkan metadata order.")
-
-        # Filter baris dengan meta_key '_wc_order_attribution_session_pages'
-        page_data = order_meta[order_meta["meta_key"] == "_wc_order_attribution_session_pages"]
+        
+        # Filter berdasarkan IP dan Tanggal
+        filtered_df_page = filter(page_chart)
 
         # Hitung jumlah interaksi tiap halaman
-        page_counts = page_data["meta_value"].value_counts().reset_index()
+        page_counts = filtered_df_page["meta_value"].value_counts().reset_index()
         page_counts.columns = ["page", "interaction_count"]
 
         # Ambil 10 page teratas
@@ -323,54 +254,32 @@ if page == "Visualisasi":
     # --- Visualisasi Frekuensi Transaksi per Jam berdasarkan IP ---
     st.subheader("Frekuensi Pembelian Berdasarkan Jam dan IP Address", divider=True)
 
-    df_v1 = sales_v1.copy(deep=True)
-    df_v1 = df_v1[df_v1['order_item_type'] != 'shipping']
-    df_v1['order_date'] = pd.to_datetime(df_v1['order_date'])
-    df_v1 = df_v1[['order_date', 'ip_address', 'order_id']].drop_duplicates()
-    
-    # Filter berdasarkan IP dan tanggal
-    filtered_df = df_v1[
-        (df_v1['ip_address'].isin(selected_ips)) &
-        (df_v1['order_date'].dt.date >= date_range[0]) &
-        (df_v1['order_date'].dt.date <= date_range[1])
-    ]
-
-    # Bulatkan waktu ke jam terdekat
-    filtered_df['order_time'] = filtered_df['order_date'].dt.floor('h')
-
-    # Grouping
-    grouped = filtered_df.groupby(['order_time', 'ip_address']).size().reset_index(name='jumlah_transaksi')
+    # Filter berdasarkan IP dan Tanggal
+    filtered_df_line = filter(line_chart)
 
     # Pivot agar IP Address menjadi kolom
-    pivot_df = grouped.pivot(index='order_time', columns='ip_address', values='jumlah_transaksi').fillna(0)
+    pivot_df = filtered_df_line.pivot(index='order_date', columns='ip_address', values='jumlah_transaksi').fillna(0)
 
     # Plotting
-    fig, ax = plt.subplots(figsize=(18, 8))
-    pivot_df.plot(ax=ax, marker='o', markersize=8, linewidth=1.5)
-    ax.set_title('Frekuensi Pembelian per Jam Berdasarkan IP Address')
-    ax.set_xlabel('Waktu Pemesanan')
-    ax.set_ylabel('Jumlah Transaksi')
-    ax.legend(title='IP Address', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
-    ax.grid(True)
+    fig_line, ax_line = plt.subplots(figsize=(18, 8))
+    pivot_df.plot(ax=ax_line, marker='o', markersize=8, linewidth=1.5)
+    ax_line.set_title('Frekuensi Pembelian per Jam Berdasarkan IP Address')
+    ax_line.set_xlabel('Waktu Pemesanan')
+    ax_line.set_ylabel('Jumlah Transaksi')
+    ax_line.legend(title='IP Address', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+    ax_line.grid(True)
     plt.tight_layout()
-
-    st.pyplot(fig)
+    
+    # Plotting
+    st.pyplot(fig_line)
     
     
     # ------------------------------------------------------------------------------------
     # --- Visualisasi Top 10 Produk dengan Interaksi Terbanyak ---
     st.subheader("Top 10 Produk Berdasarkan Interaksi", divider=True)
 
-    order_items = df_items.copy(deep=True)
-    # Filter hanya untuk item produk (bukan shipping, tax, dsb)
-    product_interactions = order_items[order_items["order_item_type"] == "line_item"]
-
-    # Hitung jumlah interaksi produk
-    product_counts = product_interactions["order_item_name"].value_counts().reset_index()
-    product_counts.columns = ["product_name", "interaction_count"]
-
     # Ambil 10 produk teratas
-    top_products = product_counts.head(10)
+    top_products = interact_chart.head(10)
 
     # Visualisasi bar chart horizontal
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -402,7 +311,6 @@ if page == "Visualisasi":
 
     # Tambahkan spinner agar Streamlit tidak tampak diam saat loading lokasi
     with st.spinner("Menyiapkan visualisasi..."):
-        city_sales = load_city_sales(selected_ips, date_range)
 
         fig_map = px.scatter_geo(
             city_sales,
@@ -439,7 +347,6 @@ if page == "Visualisasi":
 # ---------------------------------- HALAMAN MODELLING 1 ----------------------------------
 elif page == "Model: Association Rules":
     st.header("🤖 Modelling - Association Rules")
-    rules = pd.read_csv("association_rules.csv")
 
     st.caption(
         """
