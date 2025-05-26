@@ -8,15 +8,15 @@ Projek simulasi jika kita menjadi pemilik website dan ingin melakukan analisis d
 ## Team
 | Nama     | Tugas                                |
 |----------|--------------------------------------|
-| Leo      | Data Entry, Model Asosiasi, PPT      |
-| Matthew  | Data Entry, Model Cluster, PPT       |
-| Hanif    | Data Entry, Model Cluster, PPT       |
-| Shafa    | Data Entry, Analisis CRISP - DM, PPT |
-| Naila    | Data Entry, Analisis CRISP - DM, PPT |
-| Arvi     | Data Entry, Analisis CRISP - DM, PPT |
-| Ridho    | Data Entry, Pemodelan, PPT           |
-| Nashya   | Data Entry, Evaluasi Model, PPT      |
-| Carsen   | Data Entry, Evaluasi Model, PPT      |
+| Leo      | Data Entry, Model Asosiasi      |
+| Matthew  | Data Entry, Model Cluster       |
+| Hanif    | Data Entry, Model Cluster       |
+| Shafa    | Data Entry, Analisis CRISP - DM |
+| Naila    | Data Entry, Analisis CRISP - DM |
+| Arvi     | Data Entry, Analisis CRISP - DM |
+| Ridho    | Data Entry, Model Cluster       |
+| Nashya   | Data Entry, Evaluasi Model      |
+| Carsen   | Data Entry, Evaluasi Model      |
 
 [Link Project Dataset](https://docs.google.com/spreadsheets/d/1bbRVhnfwOmIa0C_dv0STHrSnKg-O4HiISMuFjkj4mQY/edit?usp=sharing)
 
@@ -33,4 +33,3 @@ pip install -r requirements.txt
 
 ## Files
 - `sql.txt`: berisi berbagai kode SQL untuk query dari database menjadi file csv, atau analisis tertentu.
--  
